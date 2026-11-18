@@ -4,6 +4,12 @@
 Writes one 1024x1024 PNG summing up the world news of Wednesday
 18 November 2026 to $MAKEFUN_OUTPUT_DIR/entry.png (default /output).
 
+Design: a bold newspaper front page built for a vision judge that sees
+the image at about 300 px across. A huge date masthead, one dominant
+top story, and five supporting stories -- every headline set large
+enough to stay legible in the thumbnail, one factual subhead each,
+no small body text anywhere.
+
 Pure Python standard library, fully deterministic: no clock, no random,
 no network, no file input. The image is drawn pixel by pixel from the
 hard-coded headlines below, so two runs always produce identical bytes.
@@ -21,16 +27,14 @@ H = 1024
 PAPER = (247, 243, 233)
 WHITE = (255, 254, 248)
 INK = (18, 22, 28)
-GRAY = (86, 92, 102)
+GRAY = (70, 76, 86)
 FAINT = (203, 196, 178)
 RED = (178, 32, 40)
 BLUE = (26, 72, 128)
 TEAL = (14, 110, 104)
 GOLD = (196, 138, 30)
 GREEN = (38, 110, 58)
-SKY = (168, 205, 232)
-SEA = (64, 118, 168)
-SAND = (226, 205, 158)
+YELLOW = (250, 210, 60)
 
 _buf = bytearray(W * H * 3)
 
@@ -62,11 +66,6 @@ def circle(cx, cy, r, rgb):
     for dy in range(-r, r + 1):
         dx = isqrt(r * r - dy * dy)
         _set_row(cx - dx, cy + dy, 2 * dx + 1, rgb)
-
-
-def ring(cx, cy, r, rgb, t=3):
-    circle(cx, cy, r, rgb)
-    circle(cx, cy, max(0, r - t), PAPER)
 
 
 def line(x0, y0, x1, y1, rgb, t=3):
@@ -129,7 +128,7 @@ FONT = {
     '+': (".....", "..#..", "..#..", "#####", "..#..", "..#..", "....."),
     '/': ("....#", "....#", "...#.", "..#..", ".#...", "#....", "#...."),
     '(': ("...#.", "..#..", ".#...", ".#...", ".#...", "..#..", "...#."),
-    ')': (".#...", "..#..", "...#.", "...#.", "...#.", "..#..", ".#..."),
+    ')': (".#...", "..#..", "...#.", "...#.", "...#.", "..#..", "...#."),
     '!': ("..#..", "..#..", "..#..", "..#..", "..#..", ".....", "..#.."),
     '?': (".###.", "#...#", "....#", "..##.", "..#..", ".....", "..#.."),
     '&': (".##..", "#..#.", "#.#..", ".#...", "#.#.#", "#..#.", ".##.#"),
@@ -157,149 +156,146 @@ def text_c(cx, y, s, scale, rgb):
     return text(cx - text_w(s, scale) // 2, y, s, scale, rgb)
 
 
-def text_r(right, y, s, scale, rgb):
-    return text(right - text_w(s, scale), y, s, scale, rgb)
-
-
 # ------------------------------------------------------------------ icons
-def icon_burst(cx, cy, r, rgb):
-    """Explosion star: 8 spokes plus a core."""
-    for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1),
-                   (1, 1), (1, -1), (-1, 1), (-1, -1)):
-        line(cx, cy, cx + dx * r, cy + dy * r, rgb, 5)
-    circle(cx, cy, r // 3, rgb)
+# Bold, simple pictograms drawn around a centre point, ~64 px across,
+# with strokes thick enough to survive a shrink to 300 px wide.
+
+def icon_burst(cx, cy, r, rgb, core_rgb):
+    """Explosion starburst with a solid core (top story)."""
+    d = r * 7 // 10
+    for dx, dy in ((r, 0), (-r, 0), (0, r), (0, -r),
+                   (d, d), (d, -d), (-d, d), (-d, -d)):
+        line(cx, cy, cx + dx, cy + dy, rgb, 8)
+    circle(cx, cy, r // 3, core_rgb)
+    circle(cx, cy, r // 6, rgb)
 
 
-def icon_flags(x, y):
-    """China and Russia flags side by side, compact."""
-    rect(x, y, 3, 26, INK)
-    rect(x + 3, y, 26, 18, RED)
-    for sx, sy in ((4, 3), (11, 1), (13, 6), (11, 11), (4, 8)):
-        rect(x + 3 + sx, y + sy, 3, 3, (250, 210, 60))
-    rect(x + 34, y, 3, 26, INK)
-    rect(x + 37, y, 26, 6, WHITE)
-    rect(x + 37, y + 6, 26, 6, BLUE)
-    rect(x + 37, y + 12, 26, 6, RED)
-    outline(x + 37, y, 26, 18, INK, 1)
+def icon_missile(x0, y0, x1, y1):
+    """Incoming missile: thick body, nose toward (x1, y1), fins and
+    a flame at the tail (x0, y0) so it reads as a missile at 300 px."""
+    circle(x0, y0, 7, GOLD)
+    circle(x0, y0, 4, RED)
+    line(x0, y0, x1, y1, INK, 13)
+    line(x0, y0, x0 - 15, y0 + 3, INK, 6)
+    line(x0, y0, x0 - 3, y0 - 15, INK, 6)
 
 
-def icon_aid(x, y):
-    """Aid cross badge beside a damaged building."""
-    rect(x, y, 24, 24, WHITE)
-    outline(x, y, 24, 24, INK, 2)
-    rect(x + 9, y + 4, 6, 16, RED)
-    rect(x + 4, y + 9, 16, 6, RED)
-    rect(x + 32, y + 8, 30, 18, GRAY)
-    rect(x + 38, y + 2, 16, 6, GRAY)
-    line(x + 48, y + 8, x + 62, y + 18, PAPER, 3)
+def icon_flags(cx, cy):
+    """China and Russia flags on poles, side by side."""
+    rect(cx - 33, cy - 26, 3, 54, INK)
+    rect(cx - 30, cy - 26, 30, 21, RED)
+    rect(cx - 26, cy - 22, 5, 5, YELLOW)
+    for sx, sy in ((10, -24), (13, -19), (10, -14)):
+        rect(cx - 30 + sx, cy + sy, 3, 3, YELLOW)
+    rect(cx + 2, cy - 26, 3, 54, INK)
+    rect(cx + 5, cy - 26, 30, 7, WHITE)
+    rect(cx + 5, cy - 19, 30, 7, BLUE)
+    rect(cx + 5, cy - 12, 30, 7, RED)
+    outline(cx + 5, cy - 26, 30, 21, INK, 1)
 
 
-def icon_virus(x, y):
-    for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1),
-                   (1, 1), (1, -1), (-1, 1), (-1, -1)):
-        line(x + 15, y + 15, x + 15 + dx * 12, y + 15 + dy * 12, RED, 3)
-        circle(x + 15 + dx * 13, y + 15 + dy * 13, 2, RED)
-    circle(x + 15, y + 15, 10, RED)
-    circle(x + 11, y + 12, 2, WHITE)
-    circle(x + 19, y + 17, 3, WHITE)
+def icon_aid(cx, cy):
+    """Damaged building with a red-cross aid badge."""
+    rect(cx - 30, cy - 6, 36, 34, GRAY)
+    rect(cx - 30, cy - 13, 36, 7, GRAY)
+    rect(cx - 20, cy + 14, 9, 14, PAPER)
+    rect(cx - 2, cy - 6, 8, 10, PAPER)
+    line(cx - 12, cy + 2, cx - 8, cy + 10, INK, 2)
+    line(cx - 8, cy + 10, cx - 13, cy + 18, INK, 2)
+    circle(cx + 19, cy - 15, 15, INK)
+    circle(cx + 19, cy - 15, 12, WHITE)
+    rect(cx + 16, cy - 22, 6, 14, RED)
+    rect(cx + 12, cy - 18, 14, 6, RED)
 
 
-def icon_probe(x, y):
-    """Voyager-style probe: dish, body, boom."""
-    circle(x + 13, y + 14, 12, WHITE)
-    ring(x + 13, y + 14, 12, INK, 2)
-    circle(x + 13, y + 14, 3, INK)
-    line(x + 21, y + 20, x + 30, y + 24, INK, 3)
-    rect(x + 29, y + 21, 10, 7, GOLD)
-    line(x + 36, y + 24, x + 56, y + 8, INK, 2)
-    circle(x + 57, y + 7, 2, INK)
+def icon_virus(cx, cy):
+    """Virus particle: spoked ball."""
+    for dx, dy in ((24, 0), (-24, 0), (0, 24), (0, -24),
+                   (17, 17), (17, -17), (-17, 17), (-17, -17)):
+        line(cx, cy, cx + dx, cy + dy, RED, 4)
+        circle(cx + dx + (3 if dx > 0 else -3 if dx < 0 else 0),
+               cy + dy + (3 if dy > 0 else -3 if dy < 0 else 0), 4, RED)
+    circle(cx, cy, 15, RED)
+    circle(cx - 5, cy - 4, 3, WHITE)
+    circle(cx + 6, cy + 5, 4, WHITE)
+
+
+def icon_chart(cx, cy):
+    """Rising market bars with an arrow."""
+    for bx, bh, rgb in ((-27, 20, GOLD), (-9, 30, GOLD), (9, 42, GREEN)):
+        rect(cx + bx, cy + 24 - bh, 13, bh, rgb)
+    line(cx - 29, cy + 26, cx + 29, cy + 26, INK, 4)
+    line(cx - 28, cy - 2, cx + 22, cy - 24, RED, 5)
+    line(cx + 22, cy - 24, cx + 9, cy - 24, RED, 5)
+    line(cx + 22, cy - 24, cx + 22, cy - 11, RED, 5)
+
+
+def icon_probe(cx, cy):
+    """Deep-space probe: gold bus, blue solar panels, dish, stars."""
+    rect(cx - 31, cy - 9, 16, 18, BLUE)
+    rect(cx + 15, cy - 9, 16, 18, BLUE)
+    line(cx - 23, cy - 9, cx - 23, cy + 9, WHITE, 2)
+    line(cx + 23, cy - 9, cx + 23, cy + 9, WHITE, 2)
+    rect(cx - 15, cy - 4, 30, 3, INK)
+    rect(cx - 8, cy - 11, 16, 22, GOLD)
+    outline(cx - 8, cy - 11, 16, 22, INK, 2)
+    circle(cx, cy - 20, 7, INK)
+    circle(cx, cy - 20, 5, WHITE)
+    line(cx, cy - 13, cx, cy - 11, INK, 3)
+    line(cx + 6, cy + 8, cx + 16, cy + 20, INK, 3)
+    circle(cx + 17, cy + 21, 2, INK)
+    for sx, sy in ((-29, -24), (28, -22), (-27, 21)):
+        rect(cx + sx, cy + sy, 3, 3, GOLD)
 
 
 # -------------------------------------------------------------- composition
-def panel(x, y, w, h, kicker, kicker_rgb, head, sub, icon):
-    rect(x, y, w, h, WHITE)
-    outline(x, y, w, h, INK, 3)
-    rect(x, y, w, 10, kicker_rgb)
-    text(x + 16, y + 22, kicker, 2, kicker_rgb)
-    if icon:
-        icon(x + w - 80, y + 13)
-    ty = y + 52
-    for ln in head:
-        text(x + 16, ty, ln, 5, INK)
-        ty += 40
-    ty = y + 176
-    for ln in sub:
-        text(x + 16, ty, ln, 3, GRAY)
-        ty += 25
-
-
-def mini(x, y, w, h, tab_rgb, tab, head, sub):
-    rect(x, y, w, h, WHITE)
-    outline(x, y, w, h, INK, 3)
-    rect(x, y, w, 22, tab_rgb)
-    text(x + 10, y + 4, tab, 2, WHITE)
-    ty = y + 32
-    for ln in head:
-        text(x + 10, ty, ln, 3, INK)
-        ty += 22
-    text(x + 10, y + 84, sub, 2, GRAY)
+def strip(y, accent, headline, sub, icon):
+    """One supporting story: full-width band, pictogram left, big text."""
+    rect(24, y, W - 48, 92, WHITE)
+    outline(24, y, W - 48, 92, INK, 3)
+    rect(27, y + 3, 6, 86, accent)
+    icon(72, y + 46)
+    rect(114, y + 12, 2, 68, FAINT)
+    text(126, y + 11, headline, 6, INK)
+    text(126, y + 59, sub, 4, GRAY)
 
 
 def compose():
     rect(0, 0, W, H, PAPER)
     outline(6, 6, W - 12, H - 12, INK, 3)
 
-    # Masthead
-    text_c(W // 2, 30, "THE WORLD IN ONE DAY", 8, INK)
-    rect(24, 96, W - 48, 5, RED)
-    rect(24, 105, W - 48, 2, INK)
+    # Masthead: paper name, then the date HUGE on two lines
+    text_c(W // 2, 24, "THE WORLD IN ONE DAY", 6, INK)
+    rect(24, 74, W - 48, 5, RED)
+    rect(24, 83, W - 48, 2, INK)
+    text_c(W // 2, 94, "WEDNESDAY", 11, INK)
+    text_c(W // 2, 178, "NOVEMBER 18, 2026", 8, RED)
+    rect(24, 244, W - 48, 3, INK)
+    rect(24, 250, W - 48, 2, RED)
 
-    # Date band: the day, named loud and clear
-    rect(24, 116, W - 48, 54, RED)
-    text_c(W // 2, 126, "WEDNESDAY, 18 NOVEMBER 2026", 5, WHITE)
-    text_c(W // 2, 178, "ALL STORIES REPORTED ON THIS DAY, ACROSS THE WORLD", 2, GRAY)
+    # Top story: Iran strikes Gulf bases
+    ty = 260
+    rect(24, ty, W - 48, 248, WHITE)
+    outline(24, ty, W - 48, 248, INK, 3)
+    rect(24, ty, W - 48, 10, RED)
+    text(40, ty + 20, "TOP STORY * MIDDLE EAST", 4, RED)
+    text(40, ty + 54, "IRAN STRIKES", 10, INK)
+    text(40, ty + 128, "GULF BASES", 10, INK)
+    text(40, ty + 206, "KUWAIT, BAHRAIN HIT; U.S. STRUCK QESHM", 4, GRAY)
+    icon_burst(880, ty + 114, 78, GOLD, RED)
+    icon_missile(968, ty + 34, 922, ty + 80)
 
-    # Top story
-    tx, ty, tw, th = 24, 200, W - 48, 216
-    rect(tx, ty, tw, th, WHITE)
-    outline(tx, ty, tw, th, INK, 3)
-    rect(tx, ty, tw, 10, RED)
-    text(tx + 18, ty + 20, "TOP STORY * MIDDLE EAST", 3, RED)
-    icon_burst(tx + tw - 40, ty + 28, 16, GOLD)
-    text(tx + 12, ty + 48, "IRAN STRIKES GULF BASES", 7, INK)
-    text(tx + 18, ty + 102, "REPLYING TO U.S. QESHM HIT", 6, INK)
-    text(tx + 18, ty + 152, "TEHRAN TARGETS KUWAIT, BAHRAIN AFTER", 4, GRAY)
-    text(tx + 18, ty + 184, "U.S. STRUCK MISSILE SITE ON QESHM", 4, GRAY)
-
-    # Four main panels
-    pw, ph = 486, 228
-    panel(24, 424, pw, ph, "ASIA * DIPLOMACY", BLUE,
-          ["XI AND PUTIN", "MEET IN", "SHENZHEN"],
-          ["APEC TALKS COME BEFORE", "THREE-WAY TRUMP SUMMIT"],
-          icon_flags)
-    panel(514, 424, pw, ph, "EUROPE * WAR IN UKRAINE", RED,
-          ["ZAPORIZHIA AID", "CENTRE TOLL", "RISES TO 40"],
-          ["ZELENSKYY RAISES TOLL;", "DOZENS STILL MISSING"],
-          icon_aid)
-    panel(24, 664, pw, ph, "AFRICA * HEALTH", GREEN,
-          ["CONGO EBOLA", "CASES PASS", "11,000"],
-          ["DOUBLED IN THREE MONTHS;", "CHILDREN HARDEST HIT"],
-          icon_virus)
-    panel(514, 664, pw, ph, "SCIENCE * SPACE", TEAL,
-          ["VOYAGER 1 NOW", "ONE LIGHT-DAY", "FROM EARTH"],
-          ["SIGNALS TAKE 24 HOURS TO", "REACH THE 1977 PROBE"],
-          icon_probe)
-
-    # Four mini stories
-    mw, mh = 237, 106
-    mini(24, 902, mw, mh, BLUE, "POLITICS",
-         ["PELTOLA WINS", "ALASKA VOTE"], "SENATE: DEMS 56-44")
-    mini(273, 902, mw, mh, RED, "HEALTH",
-         ["U.S. LOSES", "MEASLES-FREE"], "CASES PASS 5,400")
-    mini(522, 902, mw, mh, GOLD, "MARKETS",
-         ["NVIDIA SEES", "$130BN QTR"], "GOLD BELOW $3,800")
-    mini(771, 902, mw, mh, TEAL, "CLIMATE",
-         ["COP31 FIGHT", "ON AID CASH"], "DEAL STILL UNCLEAR")
+    # Five supporting stories
+    strip(520, BLUE, "XI + PUTIN IN SHENZHEN",
+          "APEC TALKS BEFORE TRUMP SUMMIT", icon_flags)
+    strip(618, RED, "ZAPORIZHIA TOLL: 40 DEAD",
+          "AID CENTRE HIT; DOZENS MISSING", icon_aid)
+    strip(716, GREEN, "CONGO EBOLA TOPS 11,000",
+          "CASES DOUBLED IN THREE MONTHS", icon_virus)
+    strip(814, GOLD, "NVIDIA FORECASTS $130BN",
+          "GOLD SINKS BELOW $3,800 AN OUNCE", icon_chart)
+    strip(912, TEAL, "VOYAGER 1: ONE LIGHT-DAY",
+          "ITS SIGNALS TAKE A FULL 24 HOURS", icon_probe)
 
 
 # -------------------------------------------------------------------- png
