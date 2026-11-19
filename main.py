@@ -641,7 +641,7 @@ def compose():
               "XI GREETS TRUMP IN SHENZHEN",
               "ON THE TARMAC; PUTIN TOO; TALKS THURSDAY",
               "AFP * AP * NPR", scene_summit, PURPLE)
-    lead_card(353, 216, 318, 218, 2, "THE GULF * OVERNIGHT",
+    lead_card(353, 216, 318, 218, 2, "THE GULF",
               "KUWAIT, BAHRAIN STOP IRAN DRONES",
               "DRONES AIMED AT A U.S. BASE AND GULF STATES",
               "AL JAZEERA * REUTERS", scene_gulf, RED)
